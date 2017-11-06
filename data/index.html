@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="bootstrap.min.css" />
+    <script src="jquery.min.js"></script>
+    <script src="Chart.bundle.min.js"></script>
+    <title>DPS5005 web interface</title>
+    <style>
+body { background-color: linen; }
+h1 { font-size: 2.0em; font-stretch: extra-expanded; text-transform: uppercase; }
+.metrics { text-shadow: 0 0 1px #666; }
+.metrics strong { font-size: 2.5em; }
+.metrics .voltage strong { color: rgb(75, 192, 192); }
+.metrics .current strong { color: rgb(255, 205, 86); }
+.col {margin: 10px; }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row align-items-start metrics">
+          <div class="col text-center voltage">
+            <h1>Voltage</h1>
+            <p><strong id="uout">N/A V</strong></p>
+            <p>U-SET: <input id="uset" type="number" min="0" max="50" step="0.01"></p>
+          </div>
+          <div class="col text-center current">
+            <h1>Current</h1>
+            <p><strong id="iout">N/A A</strong></p>
+            <p>U-SET: <input id="iset" type="number" min="0" max="5" step="0.001"></p>
+          </div>
+        </div>
+
+        <div class="row text-center">
+            <div class="col onoff">
+                <button type="button" id="onoff" class="btn btn-primary">output ON</button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col status text-center">
+                CV/CC:  <strong id="cvcc">n/a</strong> |
+                POWER:  <strong id="power">n/a W</strong> |
+                U-IN: <strong id="uin">n/a V</strong> |
+                LOCK:  <strong id="lock">n/a</strong> |
+                PROTECT:  <strong id="protect">n/a</strong>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <canvas id="canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+
+<script>
+window.chartColors = {
+	red: 'rgb(255, 99, 132)',
+	orange: 'rgb(255, 159, 64)',
+	yellow: 'rgb(255, 205, 86)',
+	green: 'rgb(75, 192, 192)',
+	blue: 'rgb(54, 162, 235)',
+	purple: 'rgb(153, 102, 255)',
+	grey: 'rgb(201, 203, 207)'
+};
+
+var lineChartData = {
+    labels: Array.from(new Array(31), (x,i) => -30+i),
+    datasets: [{
+        label: "Voltage",
+        borderColor: window.chartColors.green,
+        backgroundColor: window.chartColors.green,
+        fill: false,
+        data: new Array(31).fill(0.0),
+        yAxisID: "y-axis-1",
+    }, {
+        label: "Current",
+        borderColor: window.chartColors.yellow,
+        backgroundColor: window.chartColors.yellow,
+        fill: false,
+        data: new Array(31).fill(0.0),
+        yAxisID: "y-axis-2"
+    }]
+};
+
+window.onload = function() {
+    var ctx = document.getElementById("canvas").getContext("2d");
+    window.metrics = Chart.Line(ctx, {
+        data: lineChartData,
+        options: {
+            responsive: true,
+            hoverMode: 'index',
+            stacked: false,
+            title:{
+                display: true,
+                text:'Historical values'
+            },
+            scales: {
+                yAxes: [{
+                    type: "linear", // only linear but allow scale type registration. This allows extensions to exist solely for log scale for instance
+                    display: true,
+                    ticks: {
+                        min: 0.0,
+                        suggestedMin: 0,
+                        beginAtZero: true,
+                    },
+                    position: "left",
+                    id: "y-axis-1",
+                }, {
+                    type: "linear", // only linear but allow scale type registration. This allows extensions to exist solely for log scale for instance
+                    display: true,
+                    ticks: {
+                        min: 0.0,
+                        max: 5.1,
+                        suggestedMin: 0,
+                        beginAtZero: true,
+                    },
+                    position: "right",
+                    id: "y-axis-2",
+
+                    // grid line settings
+                    gridLines: {
+                        drawOnChartArea: false, // only want the grid lines for one axis to show up
+                    },
+                }],
+            }
+        }
+    });
+};
+
+function turnOn() {
+    $.get("/onoff", {'v': 1});
+}
+
+function turnOff() {
+    $.get("/onoff", {'v': 0});
+}
+
+$('#uset').change(function() {
+    $.get("/uset", {'v': parseFloat($(this).val())*100});
+})
+
+$('#iset').change(function() {
+    $.get("/iset", {'v': parseFloat($(this).val())*1000});
+})
+
+function periodicUpdate() {
+    $.ajax({
+        url: "/status",
+        success: function(data) {
+            $("#uout").text((data.uout/100).toFixed(2) + " V");
+            if (!$("#uset").is(":focus")) {
+                $("#uset").val((data.uset/100).toFixed(2));
+            }
+            $("#iout").text((data.iout/1000).toFixed(3) + " A");
+            if (!$("#iset").is(":focus")) {
+                $("#iset").val((data.iset/1000).toFixed(3));
+            }
+
+            if (data.onoff) {
+                $("#onoff").text("output OFF");
+                $("#onoff").removeClass("btn-primary");
+                $("#onoff").addClass("btn-warning");
+                $("#onoff").click(turnOff);
+            } else {
+                $("#onoff").text("output ON");
+                $("#onoff").addClass("btn-primary");
+                $("#onoff").removeClass("btn-warning");
+                $("#onoff").click(turnOn);
+            }
+
+            $("#cvcc").text(data.cvcc==0?"CV":"CC");
+            $("#power").text((data.power/100).toFixed(2) + " W");
+            $("#uin").text((data.uin/100).toFixed(2) + " V");
+            $("#lock").text(data.lock?"on":"off");
+            $("#protect").text(data.protect?"on":"off");
+
+            window.metrics.data.datasets[0].data.shift()
+            window.metrics.data.datasets[0].data.push((data.uout/100).toFixed(2));
+            window.metrics.update();
+            window.metrics.data.datasets[1].data.shift()
+            window.metrics.data.datasets[1].data.push((data.iout/1000).toFixed(3));
+            window.metrics.update();
+        },
+        complete: function() {
+            setTimeout(periodicUpdate, 1000);
+        }
+    });
+}
+
+setTimeout(periodicUpdate, 1000);
+
+/*
+document.getElementById('randomizeData').addEventListener('click', function() {
+    lineChartData.datasets.forEach(function(dataset) {
+        dataset.data = dataset.data.map(function() {
+            return randomScalingFactor();
+        });
+    });
+
+    window.myLine.update();
+});
+*/
+</script>
+</body>
+
+</html> 
