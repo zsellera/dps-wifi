@@ -3,19 +3,26 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <FS.h>
+#include <NTPClient.h>
+#include <Time.h>
+#include <TimeAlarms.h>
 #include <cstdlib>
+#include <memory>
 
 #include "dps.hpp"
+#include "automation.hpp"
 #include "settings.h"
 
 //SSID and Password of your WiFi router
 const char* ssid = WIFI_SSID;
 const char* password = WIFI_PASSWORD;
 
-ESP8266WebServer server(80); //Server on port 80
-File fsUploadFile; //holds the current upload
+ESP8266WebServer server(80);    // Server on port 80
+File fsUploadFile;              // holds the current upload - quick html page upload
+dps_status dps_info;            // holds the last values
+WiFiUDP ntpUDP;                 // UDP packet for NTP client
+NTPClient timeClient(ntpUDP, NTP_POOL);
 
-#define LED_PIN 2
 
 const char* status_fmt =
   "{\"uset\":%d,"
@@ -33,17 +40,12 @@ const char* status_fmt =
 void handleStatus() {
   digitalWrite(LED_PIN, LOW);
   char buff[256];
-  dps_status dps;
-  if (dps_read_status(&dps)) {
-    sprintf(buff, status_fmt,
-            dps.uset, dps.iset, dps.uout, dps.iout, 
-            dps.power, dps.uin, dps.lock, dps.protect, 
-            dps.cvcc, dps.onoff);
-    String data(buff);
-    server.send(200, "application/json", data);
-  } else {
-    server.send(500, "application/json", "{}");
-  }
+  sprintf(buff, status_fmt,
+          dps_info.uset, dps_info.iset, dps_info.uout, dps_info.iout, 
+          dps_info.power, dps_info.uin, dps_info.lock, dps_info.protect, 
+          dps_info.cvcc, dps_info.onoff);
+  String data(buff);
+  server.send(200, "application/json", data);
 }
 
 void handleVoltage() {
@@ -122,8 +124,15 @@ void handleDeploy() {
   }
 }
 
+void updateNtpTime() {
+  timeClient.update();
+  time_t _now = timeClient.getEpochTime();
+  setTime(_now);
+  adjustTime(TIMEZONE * 3600);
+}
+
 void setup(void){
-  Serial.begin(9600);
+  Serial.begin(DPS_BAUD);
   pinMode(LED_PIN, OUTPUT);     // Initialize the LED_BUILTIN pin as an output
 
   SPIFFS.begin();
@@ -157,13 +166,21 @@ void setup(void){
   server.begin();                  //Start server
   Serial.println("HTTP server started");
 
+  Serial.println("Update time");
+  timeClient.begin();
+  updateNtpTime();
+  Alarm.timerRepeat(60, updateNtpTime);
+  Serial.print("Current time is: ");
+  Serial.println(now());
+
   if (!MDNS.begin(MDSN_NAME)) {
     Serial.println("Error setting up MDNS responder!");
   }
   Serial.println("mDNS responder started");
   // Add service to MDNS-SD
   MDNS.addService("http", "tcp", 80);
-  
+
+  Serial.println("Setup done");
   delay(500);  
   Serial.swap();
   delay(500);
@@ -171,6 +188,6 @@ void setup(void){
 
 
 void loop(void) {
-  server.handleClient();          //Handle client requests
-  digitalWrite(LED_PIN, HIGH);
+  server.handleClient();          // Handle API requests
+  Alarm.delay(0);                 // Run timer hooks
 }

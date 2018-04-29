@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="bootstrap.min.css" />
     <script src="jquery.min.js"></script>
     <script src="Chart.bundle.min.js"></script>
@@ -34,7 +35,7 @@ h1 { font-size: 2.0em; font-stretch: extra-expanded; text-transform: uppercase; 
 
         <div class="row text-center">
             <div class="col onoff">
-                <button type="button" id="onoff" class="btn btn-primary">output ON</button>
+                <button type="button" id="onoff" onClick="toggleOnOff()" class="btn btn-primary">output ON</button>
             </div>
         </div>
 
@@ -50,7 +51,7 @@ h1 { font-size: 2.0em; font-stretch: extra-expanded; text-transform: uppercase; 
 
         <div class="row">
             <div class="col">
-                <canvas id="canvas"></canvas>
+                <canvas id="canvas" height="200"></canvas>
             </div>
         </div>
     </div>
@@ -131,12 +132,9 @@ window.onload = function() {
     });
 };
 
-function turnOn() {
-    $.get("/onoff", {'v': 1});
-}
-
-function turnOff() {
-    $.get("/onoff", {'v': 0});
+function toggleOnOff() {
+    v = $("#onoff").hasClass("btn-primary");
+    $.get("/onoff", {'v': v ? 1 : 0});
 }
 
 $('#uset').change(function() {
@@ -164,12 +162,10 @@ function periodicUpdate() {
                 $("#onoff").text("output OFF");
                 $("#onoff").removeClass("btn-primary");
                 $("#onoff").addClass("btn-warning");
-                $("#onoff").click(turnOff);
             } else {
                 $("#onoff").text("output ON");
                 $("#onoff").addClass("btn-primary");
                 $("#onoff").removeClass("btn-warning");
-                $("#onoff").click(turnOn);
             }
 
             $("#cvcc").text(data.cvcc==0?"CV":"CC");
