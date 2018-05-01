@@ -1,8 +1,8 @@
 
 #include <memory>
 #include <vector>
+#include <TimeLib.h>
 #include <SD.h>
-#include <Time.h>
 #include "automation.hpp"
 #include "dps.hpp"
 
@@ -19,8 +19,8 @@ typedef struct limits_t {
   uint16_t current;
 } limits_t;
 
-void handle_onoff(time_t t, automation_cronentry_t e);
-void handle_limits(time_t t, automation_cronentry_t e);
+void handle_onoff(automation_cronentry_t e);
+void handle_limits(automation_cronentry_t e);
 
 
 // Enable/disable automation
@@ -77,23 +77,66 @@ void automation_crontab_remove(int n)
 }
 
 
+bool cron_matches(time_t t, automation_cronentry_t e)
+{
+  automation_crondef_t cd = e.crondef;
+  
+  if (cd.min > 0 && cd.min != minute(t))
+  {
+    return false;
+  }
+
+  if (cd.hour > 0 && cd.hour != hour(t))
+  {
+    return false;
+  }
+
+  if (cd.day > 0 && cd.day != day(t))
+  {
+    return false;
+  }
+
+  if (cd.month > 0 && cd.month != month(t))
+  {
+    return false;
+  }
+
+  if (cd.dow > 0 && cd.dow != weekday(t))
+  {
+    return false;
+  }
+
+  return true;
+}
+
 // Execute whatever automation is installed:
 void automation_run()
 {
-  time_t t = now();
- 
-  // first set voltage and current limits
-  for (int i=0; i<m_entries.size(); ++i)
+  if (m_enabled)
   {
-    handle_limits(t, m_entries[i]);
-  }
+    time_t t = now();
 
-  // then apply on/off states
-  for (int i=0; i<m_entries.size(); ++i)
-  {
-    handle_onoff(t, m_entries[i]);
+    for (int i=0; i<m_entries.size(); ++i)
+    {
+      automation_cronentry_t entry = m_entries[i];
+      if (cron_matches(t, entry))
+      {
+        switch (entry.step_type)
+        {
+          case AUTOMATION_SET_ONOFF:
+          handle_onoff(entry);
+          break;
+
+          case AUTOMATION_SET_LIMITS:
+          handle_limits(entry);
+          break;
+
+          default:
+          break;
+        }
+      }
+    }
   }
-  
 }
 
 // cron entry: onoff
@@ -124,4 +167,17 @@ automation_cronentry_t automation_entry_limits(automation_crondef_t cd, uint16_t
   return e;
 }
 
+
+void handle_onoff(automation_cronentry_t e)
+{
+  onoff_t * s = (onoff_t *) &e.context;
+  dps_set_onoff(s->state);
+}
+
+void handle_limits(automation_cronentry_t e)
+{
+  limits_t * s = (limits_t *) &e.context;
+  dps_set_voltage_current(s->voltage, s->current);
+  dps_set_onoff(true);
+}
 
