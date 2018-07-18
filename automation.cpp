@@ -2,13 +2,13 @@
 #include <memory>
 #include <vector>
 #include <TimeLib.h>
-#include <SD.h>
 #include "automation.hpp"
 #include "dps.hpp"
 
 
 static bool m_enabled = false;
-static std::vector<automation_cronentry_t> m_entries;
+static automation_t m_entries;
+static time_t m_last_check = 0;
 
 typedef struct onoff_t {
   bool state;
@@ -29,6 +29,10 @@ void automation_set_enabled(bool enabled)
   m_enabled = enabled;
 }
 
+bool automation_get_enabled()
+{
+  return m_enabled;
+}
 
 // Load automation settings
 void automation_load(File source)
@@ -36,9 +40,9 @@ void automation_load(File source)
   automation_cronentry_t buff;
 
   m_entries.clear();
-  while (1)
+  while (source.available())
   {
-    int n = source.read(&buff, sizeof(buff));
+    int n = source.readBytes((char*) &buff, sizeof(buff));
     if (n == sizeof(buff))
     {
       m_entries.push_back(buff);
@@ -59,6 +63,11 @@ void automation_store(File dst)
   }
 }
 
+
+automation_t automation_entries()
+{
+  return m_entries;
+}
 
 // Add a new entry to crontab
 void automation_crontab_add(automation_cronentry_t entry)
@@ -115,6 +124,14 @@ void automation_run()
   if (m_enabled)
   {
     time_t t = now();
+    time_t minutes = t / 60;
+
+    if (minutes == m_last_check)
+    {
+      return;
+    } else {
+      m_last_check = minutes;
+    }
 
     for (int i=0; i<m_entries.size(); ++i)
     {
@@ -179,5 +196,18 @@ void handle_limits(automation_cronentry_t e)
   limits_t * s = (limits_t *) &e.context;
   dps_set_voltage_current(s->voltage, s->current);
   dps_set_onoff(true);
+}
+
+void automation_parse_onoff(automation_ctx_t* ctx, bool &state)
+{
+  onoff_t * s = (onoff_t *) ctx;
+  state = s->state;
+}
+
+void automation_parse_limits(automation_ctx_t* ctx, uint16_t &voltage, uint16_t &current)
+{
+  limits_t * s = (limits_t *) ctx;
+  voltage = s->voltage;
+  current = s->current;
 }
 

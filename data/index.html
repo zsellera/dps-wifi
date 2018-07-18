@@ -45,13 +45,34 @@ h1 { font-size: 2.0em; font-stretch: extra-expanded; text-transform: uppercase; 
                 POWER:  <strong id="power">n/a W</strong> |
                 U-IN: <strong id="uin">n/a V</strong> |
                 LOCK:  <strong id="lock">n/a</strong> |
-                PROTECT:  <strong id="protect">n/a</strong>
+                PROTECT:  <strong id="protect">n/a</strong> |
+                TIME:  <strong id="time">n/a</strong>
             </div>
         </div>
 
         <div class="row">
             <div class="col">
                 <canvas id="canvas" height="200"></canvas>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <h1>Wifi</h1>
+                <form id="wifi-clear">
+                    <p>Available wifis: </p><p id="wifis"></p>
+                    <button type="submit" class="btn btn-primary">Remove All</button>
+                </form>
+                <h2>Add/Update</h2>
+                <form id="wifi-form" class="form-inline">
+                    <label class="sr-only" for="ssid">SSID</label>
+                    <input type="text" class="form-control mb-2 mr-sm-2 mb-sm-0" id="ssid" placeholder="SSID">
+                  
+                    <label class="sr-only" for="pass">Password</label>
+                    <input type="text" class="form-control mb-2 mr-sm-2 mb-sm-0" id="pass" placeholder="*******">
+
+                    <button type="submit" class="btn btn-primary">Add/Update</button>
+                  </form>
             </div>
         </div>
     </div>
@@ -87,7 +108,7 @@ var lineChartData = {
     }]
 };
 
-window.onload = function() {
+setupChart = function() {
     var ctx = document.getElementById("canvas").getContext("2d");
     window.metrics = Chart.Line(ctx, {
         data: lineChartData,
@@ -132,6 +153,40 @@ window.onload = function() {
     });
 };
 
+setupWifi = function()
+{
+    $.ajax({
+        url: "/wifi",
+        success: function(data) {
+            $("#wifis").empty();
+            jQuery.each(data, function(ssid, pass) {
+                var s = $("<strong></strong>").text(ssid);
+                $("#wifis").append(s);
+                $("#wifis").append(" ");
+            });
+        }
+    });
+    $("#wifi-form").submit(function(e) {
+        e.preventDefault();
+        var ssid = $("#ssid").val();
+        var pass = $("#pass").val();
+        $.get("/wifi/add", {'ssid': ssid, 'pass': pass});
+        setupWifi();
+        return false;
+    });
+    $("#wifi-clear").submit(function(e) {
+        e.preventDefault();
+        $.get("/wifi/clear");
+        setupWifi();
+        return false;
+    });
+};
+
+window.onload = function()
+{
+    setupChart();
+};
+
 function toggleOnOff() {
     v = $("#onoff").hasClass("btn-primary");
     $.get("/onoff", {'v': v ? 1 : 0});
@@ -174,6 +229,10 @@ function periodicUpdate() {
             $("#lock").text(data.lock?"on":"off");
             $("#protect").text(data.protect?"on":"off");
 
+            var d = new Date(0);
+            d.setUTCSeconds(data.time);
+            $("#time").text(d);
+
             window.metrics.data.datasets[0].data.shift()
             window.metrics.data.datasets[0].data.push((data.uout/100).toFixed(2));
             window.metrics.update();
@@ -188,18 +247,8 @@ function periodicUpdate() {
 }
 
 setTimeout(periodicUpdate, 1000);
+setupWifi();
 
-/*
-document.getElementById('randomizeData').addEventListener('click', function() {
-    lineChartData.datasets.forEach(function(dataset) {
-        dataset.data = dataset.data.map(function() {
-            return randomScalingFactor();
-        });
-    });
-
-    window.myLine.update();
-});
-*/
 </script>
 </body>
 

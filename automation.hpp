@@ -3,6 +3,7 @@
 #define __DSP_AUTOMATION__
 
 #include <stdint.h>
+#include <FS.h>
 
 typedef enum {
   AUTOMATION_SET_ONOFF,
@@ -30,15 +31,21 @@ typedef struct automation_cronentry_t {
   automation_ctx_t context;
 } automation_cronentry_t;
 
+typedef std::vector<automation_cronentry_t> automation_t;
 
 // Enable/disable automation
 void automation_set_enabled(bool enabled);
+
+// Get automation state
+bool automation_get_enabled();
 
 // Load automation settings
 void automation_load(File source);
 
 // Store automation settings
 void automation_store(File dst);
+
+automation_t automation_entries();
 
 // Add a new entry to crontab
 void automation_crontab_add(automation_cronentry_t entry);
@@ -54,6 +61,10 @@ automation_cronentry_t automation_entry_onoff(automation_crondef_t cd, bool stat
 
 // cron entry: set
 automation_cronentry_t automation_entry_limits(automation_crondef_t cd, uint16_t voltage, uint16_t current);
+
+void automation_parse_onoff(automation_ctx_t* ctx, bool &state);
+
+void automation_parse_limits(automation_ctx_t* ctx, uint16_t &voltage, uint16_t &current);
 
 #endif
 

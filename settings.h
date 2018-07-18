@@ -13,13 +13,15 @@
 #define MAX_CURRENT 4999
 
 #define MDSN_NAME "dps"
-#define LED_PIN D0
+#define LED_PIN D5
 
 #define SPIFFS_WIFI_FILE "/wifi.txt"
 #define NTP_POOL "hu.pool.ntp.org"
 #define TIMEZONE 1
 
-#define WIFI_SOFTAP_SSID "dps-ap"
+#define WIFI_SOFTAP_SSID "dps5005-ap"
 #define WIFI_SOFTAP_PASS WIFI_SOFTAP_SSID
+
+#define SPIFFS_AUTOMATION_FILE "/automation.dat"
 
 #endif
